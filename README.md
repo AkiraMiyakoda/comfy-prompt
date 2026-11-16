@@ -2,6 +2,8 @@
 
 Extract prompts from ComfyUI PNG files
 
+Extracts positive and negative prompts directly connected to KSampler and KSamplerAdvanced nodes.
+
 ```
 Usage: comfy-prompt [OPTIONS] [FILE]
 
