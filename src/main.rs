@@ -49,12 +49,15 @@ struct Prompts {
 #[derive(Debug, Deserialize)]
 struct ComfyNode<'a> {
     class_type: &'a str,
+
+    // Keep node inputs as raw JSON to avoid parsing unused fields.
     #[serde(borrow)]
     inputs: &'a RawValue,
 }
 
 #[derive(Debug, Deserialize)]
 struct TextInputs<'a> {
+    // Borrow plain strings; allocate only when JSON escapes require decoding.
     #[serde(borrow)]
     text: Cow<'a, str>,
 }
@@ -124,6 +127,8 @@ fn read_prompts(file: &mut dyn Read) -> anyhow::Result<Vec<Prompts>> {
     Ok(prompts)
 }
 
+// Read only the ComfyUI prompt metadata from PNG tEXt chunks,
+// validating its CRC before returning the raw JSON bytes.
 fn read_prompt_text(file: &mut dyn std::io::Read, length: u32) -> anyhow::Result<Option<Vec<u8>>> {
     if usize::try_from(length)? < KEYWORD_PROMPT.len() {
         bail!("tEXt chunk too small");
@@ -156,6 +161,7 @@ fn read_prompt_text(file: &mut dyn std::io::Read, length: u32) -> anyhow::Result
         u32::from_be_bytes(checksum)
     };
 
+    // PNG CRC covers the chunk type and data, but not the length.
     let crc32 = {
         let mut hasher = crc32fast::Hasher::new();
         hasher.update(CHUNK_TYPE_TEXT);
@@ -170,6 +176,9 @@ fn read_prompt_text(file: &mut dyn std::io::Read, length: u32) -> anyhow::Result
     Ok(Some(text))
 }
 
+// Resolve sampler inputs through CLIPTextEncode nodes.
+// Borrow the workflow JSON during parsing and retain only
+// the extracted prompt strings in the output.
 fn append_prompts(prompts: &mut Vec<Prompts>, json_text: &[u8]) -> anyhow::Result<()> {
     let workflow: BTreeMap<&str, ComfyNode> = serde_json::from_slice(json_text)?;
 
@@ -241,7 +250,6 @@ fn show_gui(prompts: Vec<Prompts>) -> anyhow::Result<()> {
                 return;
             }
 
-            // Node selection
             egui::ComboBox::from_label("Node")
                 .selected_text(format!("{} [{}]", prompts[selected].class_type, prompts[selected].id,))
                 .show_ui(ui, |ui| {
@@ -267,7 +275,6 @@ fn show_gui(prompts: Vec<Prompts>) -> anyhow::Result<()> {
             let header_height = ui.spacing().interact_size.y;
             let height = (ui.available_height() - 2.0 * header_height - 3.0 * spacing - 8.0) / 2.0;
 
-            // Positive Prompt
             ui.horizontal(|ui| {
                 ui.label("Positive Prompt");
 
@@ -286,7 +293,6 @@ fn show_gui(prompts: Vec<Prompts>) -> anyhow::Result<()> {
 
             ui.add_space(8.0);
 
-            // Negative Prompt
             ui.horizontal(|ui| {
                 ui.label("Negative Prompt");
 
