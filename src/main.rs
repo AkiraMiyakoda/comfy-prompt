@@ -78,7 +78,13 @@ fn main() -> anyhow::Result<()> {
         None => read_prompts(&mut stdin()),
     }?;
 
-    if args.gui { show_gui(prompts) } else { show_cli(prompts) }
+    if args.gui {
+        show_gui(prompts)?;
+    } else {
+        show_cli(prompts);
+    }
+
+    Ok(())
 }
 
 fn read_prompts(file: &mut dyn Read) -> anyhow::Result<Vec<Prompts>> {
@@ -204,10 +210,10 @@ fn append_prompts(prompts: &mut Vec<Prompts>, json_text: &[u8]) -> anyhow::Resul
                 class_type: node.class_type.to_string(),
                 positive: inputs
                     .positive
-                    .and_then(|p| texts.get(p.0.as_ref()).map(|p| p.to_string())),
+                    .and_then(|p| texts.get(p.0.as_ref()).map(ToString::to_string)),
                 negative: inputs
                     .negative
-                    .and_then(|p| texts.get(p.0.as_ref()).map(|p| p.to_string())),
+                    .and_then(|p| texts.get(p.0.as_ref()).map(ToString::to_string)),
             });
 
             Ok(())
@@ -216,14 +222,12 @@ fn append_prompts(prompts: &mut Vec<Prompts>, json_text: &[u8]) -> anyhow::Resul
     Ok(())
 }
 
-fn show_cli(prompts: Vec<Prompts>) -> anyhow::Result<()> {
+fn show_cli(prompts: Vec<Prompts>) {
     for inputs in prompts {
         println!("{} [{}]", inputs.class_type, inputs.id);
         println!("Positive: {}", inputs.positive.as_deref().unwrap_or(TEXT_NOT_CONNECTED));
         println!("Nagative: {}", inputs.negative.as_deref().unwrap_or(TEXT_NOT_CONNECTED));
     }
-
-    Ok(())
 }
 
 fn show_gui(prompts: Vec<Prompts>) -> anyhow::Result<()> {
@@ -251,7 +255,7 @@ fn show_gui(prompts: Vec<Prompts>) -> anyhow::Result<()> {
             }
 
             egui::ComboBox::from_label("Node")
-                .selected_text(format!("{} [{}]", prompts[selected].class_type, prompts[selected].id,))
+                .selected_text(format!("{} [{}]", prompts[selected].class_type, prompts[selected].id))
                 .show_ui(ui, |ui| {
                     for (i, prompt) in prompts.iter().enumerate() {
                         ui.selectable_value(&mut selected, i, format!("{} [{}]", prompt.class_type, prompt.id));

@@ -13,6 +13,9 @@ itertools = "0.15.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["raw_value"] }
 
+[lints]
+workspace = true
+
 [workspace.lints.clippy]
 missing_errors_doc = "allow"
 must_use_candidate = "allow"
