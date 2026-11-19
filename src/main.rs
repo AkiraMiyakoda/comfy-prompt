@@ -4,7 +4,7 @@
 // https://opensource.org/licenses/MIT
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::io::copy;
@@ -128,7 +128,7 @@ fn read_prompts(file: &mut dyn Read) -> anyhow::Result<Vec<Prompts>> {
             (false, true) => 1,
             _ => 2,
         };
-        (priority, p.id.parse::<i32>().unwrap_or(i32::MAX))
+        (priority, p.id.parse::<i32>().unwrap_or(i32::MAX), p.id.clone())
     });
 
     Ok(prompts)
@@ -178,9 +178,9 @@ fn read_prompt_text(file: &mut dyn Read, length: u32) -> anyhow::Result<Option<V
 // Borrow the workflow JSON during parsing and retain only
 // the extracted prompt strings in the output.
 fn append_prompts(prompts: &mut Vec<Prompts>, json_text: &[u8]) -> anyhow::Result<()> {
-    let workflow: BTreeMap<&str, ComfyNode> = serde_json::from_slice(json_text)?;
+    let workflow: HashMap<&str, ComfyNode> = serde_json::from_slice(json_text)?;
 
-    let texts: BTreeMap<&str, String> = workflow
+    let texts: HashMap<&str, String> = workflow
         .iter()
         .filter(|(_, node)| node.class_type == "CLIPTextEncode")
         .map(|(id, node)| {
