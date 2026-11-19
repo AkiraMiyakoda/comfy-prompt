@@ -7,6 +7,8 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
+use std::io::copy;
+use std::io::sink;
 use std::io::stdin;
 use std::path::PathBuf;
 
@@ -115,7 +117,7 @@ fn read_prompts(file: &mut dyn Read) -> anyhow::Result<Vec<Prompts>> {
                 append_prompts(&mut prompts, &json_text)?;
             }
         } else {
-            std::io::copy(&mut (&mut *file).take((length + 4).into()), &mut std::io::sink())?;
+            copy(&mut (&mut *file).take((length + 4).into()), &mut sink())?;
         }
     }
 
@@ -135,7 +137,7 @@ fn read_prompts(file: &mut dyn Read) -> anyhow::Result<Vec<Prompts>> {
 
 // Read only the ComfyUI prompt metadata from PNG tEXt chunks,
 // validating its CRC before returning the raw JSON bytes.
-fn read_prompt_text(file: &mut dyn std::io::Read, length: u32) -> anyhow::Result<Option<Vec<u8>>> {
+fn read_prompt_text(file: &mut dyn Read, length: u32) -> anyhow::Result<Option<Vec<u8>>> {
     if usize::try_from(length)? < KEYWORD_PROMPT.len() {
         bail!("tEXt chunk too small");
     }
@@ -150,9 +152,9 @@ fn read_prompt_text(file: &mut dyn std::io::Read, length: u32) -> anyhow::Result
     };
 
     if keyword != *KEYWORD_PROMPT {
-        std::io::copy(
+        copy(
             &mut (&mut *file).take(u64::from(length + 4) - u64::try_from(keyword.len())?),
-            &mut std::io::sink(),
+            &mut sink(),
         )?;
 
         return Ok(None);
