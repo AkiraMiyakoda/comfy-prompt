@@ -20,10 +20,10 @@ use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::value::RawValue;
 
-const SIGNATURE_PNG: &[u8; 8] = b"\x89PNG\x0d\x0a\x1a\x0a";
-const CHUNK_TYPE_TEXT: &[u8; 4] = b"tEXt";
-const CHUNK_TYPE_IEND: &[u8; 4] = b"IEND";
-const KEYWORD_PROMPT: &[u8; 7] = b"prompt\x00";
+const SIGNATURE_PNG: [u8; 8] = *b"\x89PNG\x0d\x0a\x1a\x0a";
+const CHUNK_TYPE_TEXT: [u8; 4] = *b"tEXt";
+const CHUNK_TYPE_IEND: [u8; 4] = *b"IEND";
+const KEYWORD_PROMPT: [u8; 7] = *b"prompt\x00";
 
 const MAX_TEXT_CHUNK_SIZE: u32 = 16 * 1024 * 1024;
 
@@ -92,7 +92,7 @@ fn main() -> anyhow::Result<()> {
 fn read_prompts(file: &mut dyn Read) -> anyhow::Result<Vec<Prompts>> {
     let mut buf = [0u8; 8];
     file.read_exact(&mut buf)?;
-    if buf != *SIGNATURE_PNG {
+    if buf != SIGNATURE_PNG {
         bail!("Broken PNG signature");
     }
 
@@ -108,11 +108,11 @@ fn read_prompts(file: &mut dyn Read) -> anyhow::Result<Vec<Prompts>> {
         let (length, chunk_type) = buf.split_at(4);
         let length = u32::from_be_bytes(length.try_into()?);
 
-        if chunk_type == *CHUNK_TYPE_IEND {
+        if chunk_type == CHUNK_TYPE_IEND {
             break;
         }
 
-        if chunk_type == *CHUNK_TYPE_TEXT {
+        if chunk_type == CHUNK_TYPE_TEXT {
             if let Some(json_text) = read_prompt_text(file, length)? {
                 append_prompts(&mut prompts, &json_text)?;
             }
@@ -151,7 +151,7 @@ fn read_prompt_text(file: &mut dyn Read, length: u32) -> anyhow::Result<Option<V
         keyword
     };
 
-    if keyword != *KEYWORD_PROMPT {
+    if keyword != KEYWORD_PROMPT {
         copy(
             &mut (&mut *file).take(u64::from(length + 4) - u64::try_from(keyword.len())?),
             &mut sink(),
@@ -172,7 +172,7 @@ fn read_prompt_text(file: &mut dyn Read, length: u32) -> anyhow::Result<Option<V
     // PNG CRC covers the chunk type and data, but not the length.
     let crc32 = {
         let mut hasher = crc32fast::Hasher::new();
-        hasher.update(CHUNK_TYPE_TEXT);
+        hasher.update(&CHUNK_TYPE_TEXT);
         hasher.update(&keyword);
         hasher.update(&text);
         hasher.finalize()
