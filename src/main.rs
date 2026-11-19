@@ -117,7 +117,8 @@ fn read_prompts(file: &mut dyn Read) -> anyhow::Result<Vec<Prompts>> {
                 append_prompts(&mut prompts, &json_text)?;
             }
         } else {
-            copy(&mut (&mut *file).take((length + 4).into()), &mut sink())?;
+            let skip_length = u64::from(length + 4);
+            copy(&mut file.take(skip_length), &mut sink())?;
         }
     }
 
@@ -152,10 +153,8 @@ fn read_prompt_text(file: &mut dyn Read, length: u32) -> anyhow::Result<Option<V
     };
 
     if keyword != KEYWORD_PROMPT {
-        copy(
-            &mut (&mut *file).take(u64::from(length + 4) - u64::try_from(keyword.len())?),
-            &mut sink(),
-        )?;
+        let skip_length = u64::from(length + 4) - u64::try_from(keyword.len())?;
+        copy(&mut file.take(skip_length), &mut sink())?;
 
         return Ok(None);
     }
