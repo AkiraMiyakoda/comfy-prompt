@@ -92,6 +92,7 @@ fn main() -> anyhow::Result<()> {
 fn read_prompts(file: &mut dyn Read) -> anyhow::Result<Vec<Prompts>> {
     let mut buf = [0u8; 8];
     file.read_exact(&mut buf)?;
+
     if buf != SIGNATURE_PNG {
         bail!("Broken PNG signature");
     }
@@ -99,25 +100,22 @@ fn read_prompts(file: &mut dyn Read) -> anyhow::Result<Vec<Prompts>> {
     let mut prompts: Vec<Prompts> = vec![];
 
     loop {
-        let buf = {
-            let mut buf = [0u8; 8];
-            file.read_exact(&mut buf)?;
-            buf
-        };
+        let mut buf = [0u8; 8];
+        file.read_exact(&mut buf)?;
 
-        let (length, chunk_type) = buf.split_at(4);
-        let length = u32::from_be_bytes(length.try_into()?);
+        let (data_length, chunk_type) = buf.split_at(4);
+        let data_length = u32::from_be_bytes(data_length.try_into()?);
 
         if chunk_type == CHUNK_TYPE_IEND {
             break;
         }
 
         if chunk_type == CHUNK_TYPE_TEXT {
-            if let Some(json_text) = read_prompt_text(file, length)? {
+            if let Some(json_text) = read_prompt_text(file, data_length)? {
                 append_prompts(&mut prompts, &json_text)?;
             }
         } else {
-            let skip_length = u64::from(length + 4);
+            let skip_length = u64::from(data_length + 4);
             copy(&mut file.take(skip_length), &mut sink())?;
         }
     }
@@ -146,11 +144,8 @@ fn read_prompt_text(file: &mut dyn Read, length: u32) -> anyhow::Result<Option<V
         bail!("tEXt chunk too large");
     }
 
-    let keyword = {
-        let mut keyword = [0u8; KEYWORD_PROMPT.len()];
-        file.read_exact(&mut keyword)?;
-        keyword
-    };
+    let mut keyword = [0u8; KEYWORD_PROMPT.len()];
+    file.read_exact(&mut keyword)?;
 
     if keyword != KEYWORD_PROMPT {
         let skip_length = u64::from(length + 4) - u64::try_from(keyword.len())?;
@@ -162,21 +157,17 @@ fn read_prompt_text(file: &mut dyn Read, length: u32) -> anyhow::Result<Option<V
     let mut text = vec![0u8; usize::try_from(length)? - KEYWORD_PROMPT.len()];
     file.read_exact(&mut text)?;
 
-    let checksum = {
-        let mut checksum = [0u8; 4];
-        file.read_exact(&mut checksum)?;
-        u32::from_be_bytes(checksum)
-    };
+    let mut checksum = [0u8; 4];
+    file.read_exact(&mut checksum)?;
 
     // PNG CRC covers the chunk type and data, but not the length.
-    let crc32 = {
-        let mut hasher = crc32fast::Hasher::new();
-        hasher.update(&CHUNK_TYPE_TEXT);
-        hasher.update(&keyword);
-        hasher.update(&text);
-        hasher.finalize()
-    };
-    if crc32 != checksum {
+    let mut hasher = crc32fast::Hasher::new();
+    hasher.update(&CHUNK_TYPE_TEXT);
+    hasher.update(&keyword);
+    hasher.update(&text);
+    let crc32 = hasher.finalize();
+
+    if crc32 != u32::from_be_bytes(checksum) {
         bail!("CRC doesn't match")
     }
 
